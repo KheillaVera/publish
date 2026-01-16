@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PULSE | Video Editor Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- 1. THE TIKTOK STYLE CSS --- */
+        :root {
+            --bg-dark: #121212;
+            --panel-bg: #1e1e1e;
+            --tiktok-red: #fe2c55;
+            --tiktok-red-dim: rgba(254, 44, 85, 0.2);
+            --text-white: #ffffff;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-white);
+            font-family: 'Montserrat', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        h2 {
+            font-weight: 900;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+
+        .highlight { color: var(--tiktok-red); }
+
+        /* Video Container (Phone Aspect Ratio) */
+        .video-wrapper {
+            position: relative;
+            width: 350px; /* Mobile width */
+            height: 600px;
+            background: black;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Fills the screen like TikTok */
+        }
+
+        /* --- THE EDITOR PANEL --- */
+        .editor-panel {
+            width: 350px;
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #aaa;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        /* The Timeline Track */
+        .timeline-container {
+            position: relative;
+            height: 60px;
+            background: #333;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            /* This makes the background look like "frames" */
+            background-image: linear-gradient(90deg, #444 1px, transparent 1px);
+            background-size: 10px 100%; 
+        }
+
+        /* The Active Selection (Red Box) */
+        .timeline-active {
+            position: absolute;
+            top: 0; bottom: 0;
+            left: 0%; right: 0%; /* JS will change this */
+            background: var(--tiktok-red-dim);
+            border-top: 3px solid var(--tiktok-red);
+            border-bottom: 3px solid var(--tiktok-red);
+            pointer-events: none;
+        }
+
+        /* The Draggable Handles */
+        .handle {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 18px;
+            background: var(--tiktok-red);
+            cursor: col-resize;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .handle::after {
+            content: '||';
+            color: white;
+            font-size: 8px;
+            pointer-events: none;
+        }
+
+        /* Handle Shapes */
+        .handle-left { left: 0%; border-radius: 6px 0 0 6px; }
+        .handle-right { right: 0%; border-radius: 0 6px 6px 0; }
+
+        /* Button Group */
+        .btn-group { display: flex; gap: 10px; }
+        
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        .btn-preview { background: #333; color: white; }
+        .btn-preview:hover { background: #444; }
+
+        .btn-save { background: var(--tiktok-red); color: white; }
+        .btn-save:hover { opacity: 0.9; transform: scale(1.02); }
+
+    </style>
+</head>
+<body>
+
+    <h2>PULSE <span class="highlight">EDITOR</span></h2>
+
+    <div class="video-wrapper">
+        <video id="pulseVideo" src="video.mp4" playsinline loop muted></video>
+    </div>
+
+    <div class="editor-panel">
+        <div class="time-labels">
+            <span>Start: <span id="startDisplay" class="highlight">00:00</span></span>
+            <span>End: <span id="endDisplay" class="highlight">00:00</span></span>
+        </div>
+
+        <div class="timeline-container" id="timelineTrack">
+            <div class="timeline-active" id="activeZone"></div>
+
+            <div class="handle handle-left" id="handleL"></div>
+            <div class="handle handle-right" id="handleR"></div>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-preview" id="previewBtn">▶ Preview Loop</button>
+            <button class="btn-save" id="saveBtn">✔ Post Video</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('pulseVideo');
+            const track = document.getElementById('timelineTrack');
+            const handleL = document.getElementById('handleL');
+            const handleR = document.getElementById('handleR');
+            const activeZone = document.getElementById('activeZone');
+            const startDisplay = document.getElementById('startDisplay');
+            const endDisplay = document.getElementById('endDisplay');
+
+            let videoDuration = 0;
+            let startTime = 0;
+            let endTime = 0;
+            let isDraggingL = false;
+            let isDraggingR = false;
+
+            // Initialize Video
+            video.addEventListener('loadedmetadata', () => {
+                videoDuration = video.duration;
+                endTime = videoDuration;
+                updateDisplays();
+                video.play(); // Auto play muted for effect
+            });
+
+            // Dragging Logic
+            track.addEventListener('mousedown', (e) => {
+                if (e.target === handleL) isDraggingL = true;
+                if (e.target === handleR) isDraggingR = true;
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDraggingL = false;
+                isDraggingR = false;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDraggingL && !isDraggingR) return;
+
+                const rect = track.getBoundingClientRect();
+                const offsetX = e.clientX - rect.left;
+                // Calculate percentage (0 to 100)
+                let percent = (offsetX / rect.width) * 100;
+                percent = Math.max(0, Math.min(100, percent));
+
+                if (isDraggingL) {
+                    // Prevent crossing the right handle (minus 5% gap)
+                    let currentRight = parseFloat(handleR.style.right) || 0; 
+                    if (percent < (100 - currentRight - 5)) {
+                        handleL.style.left = percent + '%';
+                        activeZone.style.left = percent + '%';
+                        startTime = (percent / 100) * videoDuration;
+                        video.currentTime = startTime; // Jump to start
+                    }
+                }
+
+                if (isDraggingR) {
+                    // Convert left-based percent to right-based percent
+                    let rightPercent = 100 - percent;
+                    let currentLeft = parseFloat(handleL.style.left) || 0;
+                    
+                    if (rightPercent < (100 - currentLeft - 5)) {
+                        handleR.style.right = rightPercent + '%';
+                        activeZone.style.right = rightPercent + '%';
+                        endTime = (percent / 100) * videoDuration;
+                        // For right handle, we usually don't jump video, just update time
+                    }
+                }
+
+                updateDisplays();
+            });
+
+            // Update Time Text
+            function updateDisplays() {
+                startDisplay.innerText = formatTime(startTime);
+                endDisplay.innerText = formatTime(endTime);
+            }
+
+            function formatTime(s) {
+                let m = Math.floor(s / 60);
+                let sec = Math.floor(s % 60);
+                return `${m}:${sec < 10 ? '0'+sec : sec}`;
+            }
+
+            // ENFORCE LOOP (The TikTok Effect)
+            video.addEventListener('timeupdate', () => {
+                if (video.currentTime >= endTime) {
+                    video.currentTime = startTime;
+                    video.play();
+                }
+                if (video.currentTime < startTime) {
+                    video.currentTime = startTime;
+                }
+            });
+
+            // Preview Button
+            document.getElementById('previewBtn').addEventListener('click', () => {
+                video.currentTime = startTime;
+                video.muted = false; // Unmute on explicit interaction
+                video.play();
+            });
+
+            // Save Button (Console Log / Alert)
+            document.getElementById('saveBtn').addEventListener('click', () => {
+                const message = `PULSE EXPORT:\nTrim Start: ${startTime.toFixed(2)}s\nTrim End: ${endTime.toFixed(2)}s`;
+                alert(message);
+                // Here you would add your PHP fetch call to save these numbers
+            });
+        });
+    </script>
+</body>
+</html>

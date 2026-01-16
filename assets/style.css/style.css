@@ -1,0 +1,32 @@
+body {
+    background-color: #1a1a1a; /* Dark background like CapCut */
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.main-container {
+    background-color: #2d3436;
+    padding: 40px;
+    border-radius: 20px;
+    border: 2px solid #55efc4; /* That professional green pulse color */
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+button {
+    background-color: #55efc4;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+img{
+    box-shadow: #1a1a1a;
+    border: #1a1a1a;
+    border-radius: 1000px;
+}
